@@ -45,6 +45,10 @@ def get_item_from_db(item_id: str) -> StockValue | None:
     return entry
 
 
+@app.post('/consumed/<msg>')
+def consumed(msg: str):
+    return msg
+
 @app.post('/item/create/<price>')
 def create_item(price: int):
     key = str(uuid.uuid4())

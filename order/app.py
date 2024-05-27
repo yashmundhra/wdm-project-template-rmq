@@ -66,7 +66,7 @@ def produce_message():
     channel.basic_publish(
         exchange='',
         routing_key='task_queue',
-        body="Hello, Yash sent this message",
+        body='Hello, Yash sent this message',
         properties=pika.BasicProperties(
             delivery_mode=2,  # make message persistent
         ))
