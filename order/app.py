@@ -7,6 +7,7 @@ from collections import defaultdict
 
 import redis
 import requests
+import pika
 
 from msgspec import msgpack, Struct
 from flask import Flask, jsonify, abort, Response
@@ -51,6 +52,27 @@ def get_order_from_db(order_id: str) -> OrderValue | None:
         # if order does not exist in the database; abort
         abort(400, f"Order: {order_id} not found!")
     return entry
+
+@app.get('/test_msq')
+def produce_message():
+    try:
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
+    except pika.exceptions.AMQPConnectionError as exc:
+        print("Failed to connect to RabbitMQ service. Message wont be sent.")
+        return
+
+    channel = connection.channel()
+    channel.queue_declare(queue='task_queue', durable=True)
+    channel.basic_publish(
+        exchange='',
+        routing_key='task_queue',
+        body="Hello, Yash sent this message",
+        properties=pika.BasicProperties(
+            delivery_mode=2,  # make message persistent
+        ))
+
+    connection.close()
+    return "Sent Message"
 
 
 @app.post('/create/<user_id>')
