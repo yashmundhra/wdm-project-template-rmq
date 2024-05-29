@@ -117,9 +117,7 @@ def remove_stock(item_id: str, amount: int):
     return Response(f"Item: {item_id} stock updated to: {item_entry.stock}", status=200)
 
 
-def on_find_item_request(ch, method, properties, body):
-    app.logger.info("Received item request")
-    request = json.loads(body)
+def on_find_item_request(request):
     item_id = request["item_id"]
     try:
         item_entry = get_item_from_db(item_id)
@@ -134,13 +132,23 @@ def on_find_item_request(ch, method, properties, body):
     except Exception as e:
         response = {"status": "error", "message": str(e)}
 
-    channel.basic_publish(
-        exchange="", routing_key="find_item_response_queue", body=json.dumps(response)
-    )
-    app.logger.debug(f"Processed item request for: {item_id}")
+    return response
 
-    channel.stop_consuming()
-    # return response
+
+def route_request(ch, method, properties, body):
+    app.logger.info("Received item request")
+    request = json.loads(body)
+    if request["tag"] == "find_item":
+        response = on_find_item_request(request)
+    else:
+        response = {"status": "error", "message": 'NOT IT MY BOY'}
+    
+    channel.basic_publish(
+            exchange="",
+            routing_key="stock_request_response_queue",
+            body=json.dumps(response),
+        )
+    app.logger.info(f"Processed request for: " + request["tag"])
 
 
 def setup_rabbitmq():
@@ -150,24 +158,25 @@ def setup_rabbitmq():
         connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq", blocked_connection_timeout=300))
         channel = connection.channel()
         # Declare queues
-        channel.queue_declare(queue="find_item_queue")
-        channel.queue_declare(queue="find_item_response_queue")
+        channel.queue_declare(queue="stock_request_queue")
+        channel.queue_declare(queue="stock_request_response_queue")
     except pika.exceptions.AMQPConnectionError as e:
         app.logger.error(f"Failed to connect to RabbitMQ: {e}")
 
 
 def consume_messages():
+    global connection, channel
     app.logger.info("Consuming messages from RabbitMQ")
     try:
         channel.basic_consume(
-            queue="find_item_queue",
-            on_message_callback=on_find_item_request,
+            queue="stock_request_queue",
+            on_message_callback=route_request,
             auto_ack=True,
         )
-        app.logger.info("Starting RabbitMQ consumer")
+        app.logger.info("Starting RabbitMQ stock consumer")
         channel.start_consuming()
     except Exception as e:
-        app.logger.error(f"Error in RabbitMQ consumer: {e}")
+        app.logger.error(f"Error in RabbitMQ stock consumer: {e}")
         if connection and connection.is_open:
             connection.close()
 
@@ -195,4 +204,3 @@ else:
     consumer_thread = threading.Thread(target=consume_messages)
     consumer_thread.start()
     app.logger.info("Starting stock service2")
-

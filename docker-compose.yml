@@ -11,6 +11,19 @@ services:
       - order-service
       - stock-service
       - payment-service
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    container_name: rabbitmq_container
+
 
   order-service:
     build: ./order
@@ -21,8 +34,10 @@ services:
     env_file:
       - env/order_redis.env
     depends_on:
-      - order-db
-      - rabbitmq
+      order-db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
 
   order-db:
     image: redis:7.2-bookworm
@@ -35,8 +50,10 @@ services:
     env_file:
       - env/stock_redis.env
     depends_on:
-      - stock-db
-      - rabbitmq
+      stock-db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
 
   stock-db:
     image: redis:7.2-bookworm
@@ -49,16 +66,11 @@ services:
     env_file:
       - env/payment_redis.env
     depends_on:
-      - payment-db
-      - rabbitmq
+      payment-db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
 
   payment-db:
     image: redis:7.2-bookworm
     command: redis-server --requirepass redis --maxmemory 512mb
-
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    container_name: rabbitmq_container
